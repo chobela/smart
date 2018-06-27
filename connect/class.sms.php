@@ -1,0 +1,73 @@
+<?php
+
+	class SMSPost {
+		
+		var $SenderAddress = "" ;		
+		var $Destination = "" ;
+		var $Message = "" ;
+		var $objResult = "" ;
+		
+		
+		function sendSMS() {
+			
+			$fields = array(
+				'type' => 0, 
+				'dlr' => 1,
+				'destination' => '' . $this->Destination  . '', 
+				'source' => ''. $this->SenderAddress .'',
+				'message' => ''. $this->Message . '', 
+				'username' => 'echi-ksm01', 
+				'password' => 'ksm01'
+			);			
+			
+			$options = array(
+				'http' => array(
+					'header'  => "Content-type: application/x-www-form-urlencoded\r\n",
+					'method'  => 'POST',
+					'content' => http_build_query($fields),
+				),
+			);
+			$context  = stream_context_create($options);
+			$result = file_get_contents(base64_decode("aHR0cDovL3JzbHIuY29ubmVjdGJpbmQuY29tOjgwODAvYnVsa3Ntcy9idWxrc21z"), false, $context);
+			
+			$this->objResult = $result ;			
+			
+			$this->saveMessage() ;
+			
+						
+		}
+		
+		function saveMessage() {
+					
+			$postresult = explode("|", trim($this->objResult)) ;
+
+			$status = $postresult[0];
+			$number = $postresult[1];
+			$smsid = $postresult[2];
+                        $message = $this->Message;
+			
+			
+			/*
+			
+				Sample return string: 1701|260977785208|e02004bb-edc4-4312-a598-98378adb7743
+				
+				Status | Mobile number | Unique SMS ID 
+			
+			*/
+
+                        $db = mysqli_connect(DB_HOST,DB_USER,DB_PASSWORD,DB_DATABASE);
+                        
+			$sql = "INSERT INTO sentmessages (number, message, poststatus, smsid, sent_on) VALUES ('$number', '$message', '$status', '$smsid', NOW())";
+
+                        mysqli_query($db,$sql);
+			
+			
+		}
+		
+		
+	}
+
+
+
+
+?>

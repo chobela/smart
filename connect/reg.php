@@ -1,0 +1,154 @@
+<?php
+error_reporting(E_ALL);
+ini_set('display_errors', 1);
+require_once 'DB_Functions.php';
+date_default_timezone_set('Etc/UTC');
+require 'PHPMailerAutoload.php';
+require_once 'class.sms.php';
+
+$db = new DB_Functions();
+
+// json response array
+$response = array("error" => FALSE);
+   
+if (isset($_POST['name']) && isset($_POST['plan']) && isset($_POST['email'])  && isset($_POST['tpin']) && isset($_POST['address'])
+&& isset($_POST['phone'])) {
+
+    // receiving the post params
+    $name = $_POST['name'];
+    $plan = $_POST['plan'];
+    $email = $_POST['email'];
+    $password = rand(1000,90000);
+    $tpin = $_POST['tpin'];
+    $address = $_POST['address'];
+    $phone = $_POST['phone'];
+   
+
+    // check if user is already existed with the same email
+    if ($db->isUserExisted($email)) {
+        // user already existed
+        $response["error"] = TRUE;
+        $response["error_msg"] = "User already exists with " . $email;
+        echo json_encode($response);
+    } else {
+        // create a new user
+        $user = $db->storeUser($name, $plan, $email, $tpin, $address, $phone, $password);
+        if ($user) {
+            // user stored successfully
+            $response["error"] = FALSE;
+            $response["uid"] = $user["unique_id"];
+            $response["user"]["name"] = $user["name"];
+            $response["user"]["plan"] = $user["plan"];
+            $response["user"]["email"] = $user["email"];
+            $response["user"]["tpin"] = $user["tpin"];
+            $response["user"]["address"] = $user["address"];
+            $response["user"]["phone"] = $user["phone"];
+            $response["user"]["created_at"] = $user["created_at"];
+
+$uid = $user["unique_id"];
+
+
+// Send SMS
+			
+			$sms = new SMSPost ;
+			
+			$sms->Destination = $user["phone"] ;
+			
+			$sms->SenderAddress = "Easy-Bills" ;
+			
+			$sms->Message  = 'Hello '. $name . ', This is your Easy-Bills login password: '. $password . '';
+			
+			$sms->sendSMS() ;	
+		
+			
+			// End Send SMS
+
+
+//Create a new PHPMailer instance
+$mail = new PHPMailer;
+
+//Tell PHPMailer to use SMTP
+$mail->isSMTP();
+
+//Enable SMTP debugging
+// 0 = off (for production use)
+// 1 = client messages
+// 2 = client and server messages
+$mail->SMTPDebug = 0;
+
+//Ask for HTML-friendly debug output
+$mail->Debugoutput = 'html';
+
+//Set the hostname of the mail server
+$mail->Host = 'smtp.gmail.com';
+// use
+// $mail->Host = gethostbyname('smtp.gmail.com');
+// if your network does not support SMTP over IPv6
+
+//Set the SMTP port number - 587 for authenticated TLS, a.k.a. RFC4409 SMTP submission
+$mail->Port = 587;
+
+//Set the encryption system to use - ssl (deprecated) or tls
+$mail->SMTPSecure = 'tls';
+
+//Whether to use SMTP authentication
+$mail->SMTPAuth = true;
+
+//Username to use for SMTP authentication - use full email address for gmail
+$mail->Username = "easybills123@gmail.com";
+
+//Password to use for SMTP authentication
+$mail->Password = "easybills123!";
+
+//Set who the message is to be sent from
+$mail->setFrom('easybills123@gmail.com', 'Easy-Bills');
+
+//Set an alternative reply-to address
+$mail->addReplyTo('easybills123@gmail.com', 'Easy-Bills');
+
+//Set who the message is to be sent to
+$mail->addAddress($email, $name);
+
+//Set the subject line
+$mail->Subject = 'Your Easy-Bills Login Password';
+
+//Read an HTML message body from an external file, convert referenced images to embedded,
+//convert HTML into a basic plain-text alternative body
+//$mail->msgHTML(file_get_contents('contents.html'), dirname(__FILE__));
+$mail->Body = 'Hello '. $name . ', This is your Easy-Bills login password: '. $password;
+
+//Replace the plain text body with one created manually
+$mail->AltBody = 'Hello '. $name . ', This is your Easy-Bills login password: '. $password;
+
+//Attach an image file
+$mail->addAttachment('examples/images/phpmailer_mini.png');
+
+//send the message, check for errors
+if (!$mail->send()) {
+    echo "Mailer Error: " . $mail->ErrorInfo;
+} else {
+
+ $db = mysqli_connect(DB_HOST,DB_USER,DB_PASSWORD,DB_DATABASE);
+
+$message = $mail->Body;
+                        
+			$sql = "INSERT INTO sentemails (name, email, message, sent_on) VALUES ('$name', '$email', '$message', NOW())";
+
+                        mysqli_query($db,$sql);
+   header("Location: 2.php?uid=$uid");
+}
+            echo json_encode($response);
+        } else {
+            // user failed to store
+            $response["error"] = TRUE;
+            $response["error_msg"] = "Unknown error occurred during registration!";
+            echo json_encode($response);
+        }
+    }
+} else {
+    $response["error"] = TRUE;
+    $response["error_msg"] = "Required parameters (name, plan, email, or password) is missing!";
+    echo json_encode($response);
+}
+?>
+
